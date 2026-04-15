@@ -5,8 +5,8 @@
 
 int main() {
     int *arr = my_malloc(sizeof(int) * 5);
-    char *string = my_malloc(sizeof(char) * 45);
-    string = "Team 5: Shake, Roy, Deer, Teddy, Sowju\0";
+    char *string = my_malloc(sizeof(char) * 40);
+    string = "Team 5: Aunty, Daddy, Madam, Kid, Akka\0";
     for(int i = 0; i < 5; i++) {
         arr[i] = i * 10;
         printf("%d\n", arr[i]);
