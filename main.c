@@ -6,7 +6,7 @@
 int main() {
     
     char *string = my_malloc(sizeof(char) * 40);
-    strcpy(string, "Team 5: Aunty, Daddy, Madam, Kid, Akka");
+    strcpy(string, "Team 5: Aunty, Daddy, Madam, Kid, Akka, Anna");
     printf("String: %s\n", string);
     my_free(string);
     int *arr = my_malloc(sizeof(int) * 5);
