@@ -20,6 +20,19 @@ int MAGIC_NUMBER = 0x55;
 void* my_malloc(size_t size){
     size_t total_size = sizeof(struct Block) + size;
 
+    //1. Traverse and find a empty block enough big to hold the requested size
+    struct Block *temp = heap_start;
+    while(temp!=NULL){
+        if (!temp->inUse && temp->marker == MAGIC_NUMBER){
+            if (size <= temp->size){
+                temp->inUse = true;
+                printf("Using old block\n");
+                return (void *)(temp + 1);
+            }
+        }
+        temp = temp->next;
+    }
+
     // 2. Ask the OS for that exact amount (Skipping 4KB page optimization for V1)
     void *request = (void *)sbrk(total_size);
     if (request == (void*)-1) {
@@ -49,7 +62,6 @@ void my_free(void* ptr){
         return;
     }
     old_block->inUse = false;
-    prev = old_block->prev;
     printf("Memory freed successfully\n");
     return;
 }

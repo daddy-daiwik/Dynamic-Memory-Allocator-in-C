@@ -1,34 +1,73 @@
 # Dynamic Memory Allocator in C
 
-This is a tiny custom memory allocator written in C. In simple terms, it gives you your own `my_malloc()` and `my_free()` instead of using the standard library ones.
+This project is a tiny custom allocator written in C. It provides `my_malloc()` and `my_free()` as a learning-friendly alternative to standard `malloc()` and `free()`.
 
-## What it does
+## Current behavior
 
-The allocator asks the operating system for raw memory with `sbrk()`, adds a small header in front of each allocation, and returns the part after the header to the user. The header stores basic info like the block size, whether it is in use, and links to the previous and next block.
+- Requests memory from the OS with `sbrk()` when no suitable free block exists.
+- Stores metadata in a hidden header (`struct Block`) placed right before user memory.
+- Tracks all blocks in a doubly linked list using `prev` and `next` pointers.
+- Reuses previously freed blocks when they are large enough for a new request.
+- Uses a simple magic marker check in `my_free()` to guard against invalid pointers.
 
-## How it works
+## Block layout
 
-- Every allocation gets a hidden header in front of it. That header is the `struct Block` in `my_alloc.c`.
-- The header stores the block size, a `bool` that says whether the block is in use, a magic marker for a basic safety check, and `prev` / `next` pointers.
-- All blocks are connected in a doubly linked list. `heap_start` points to the first block, and `prev` tracks the most recently allocated block.
-- `my_malloc(size)` asks the OS for `sizeof(struct Block) + size` bytes with `sbrk()`. The first part becomes the header, and the part after it is returned to the caller.
-- When a new block is added, the code links it to the previous block by setting `prev->next` and `new_block->prev`.
-- `my_free(ptr)` jumps back from the user pointer to the hidden header, checks the magic value, and marks the block as free.
+Each allocation is stored as:
 
-This is a learning project, so it is very small and does not do advanced things like reusing freed memory or merging blocks.
+1. `struct Block` header
+2. User-accessible memory (returned by `my_malloc`)
 
-## Try it out
+The header stores:
 
-1. Build it:
+- `marker`: validation value (`MAGIC_NUMBER`)
+- `prev` / `next`: list links
+- `inUse`: whether block is currently allocated
+- `size`: user-requested payload size
 
-	```bash
-	gcc main.c my_alloc.c -o main
-	```
+## Allocation flow
 
-2. Run the program:
+`my_malloc(size)` works in two stages:
 
-	```bash
-	./main
-	```
+1. Scans the existing block list for a free block (`inUse == false`) with enough capacity.
+2. If none is found, calls `sbrk(sizeof(struct Block) + size)` to create a new block, appends it to the list, and returns the payload address.
 
-3. You should see the allocated integers printed, along with messages showing when memory is created and freed.
+## Free flow
+
+`my_free(ptr)`:
+
+1. Moves one header-size back from `ptr` to locate the block metadata.
+2. Verifies the marker value.
+3. Marks the block as free (`inUse = false`) so it can be reused later.
+
+## Public API
+
+Defined in `my_alloc.h`:
+
+```c
+void* my_malloc(size_t size);
+void my_free(void* ptr);
+```
+
+## Build and run
+
+```bash
+gcc main.c my_alloc.c -o main
+./main
+```
+
+## Demo program (`main.c`)
+
+The sample program currently:
+
+- allocates a 40-byte character buffer
+- writes and prints a sample team string
+- frees the string buffer
+- allocates an integer array of 5 elements
+- fills and prints values `0, 10, 20, 30, 40`
+- frees the array
+
+You will also see allocator debug messages such as:
+
+- `Memory successfully initialized ...` (new block from OS)
+- `Using old block` (reused freed block)
+- `Memory freed successfully`
