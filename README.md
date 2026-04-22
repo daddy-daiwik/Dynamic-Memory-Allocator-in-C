@@ -1,22 +1,40 @@
 # Dynamic Memory Allocator in C
 
-This project is a tiny custom allocator written in C. It provides `my_malloc()` and `my_free()` as a learning-friendly alternative to standard `malloc()` and `free()`.
+This project is a tiny custom allocator written in C. It provides `my_malloc()`, `my_calloc()`, and `my_free()` as learning-friendly alternatives to standard allocation routines.
 
-## Current behavior
+## Latest features
 
-- Requests memory from the OS with `sbrk()` when no suitable free block exists.
-- Stores metadata in a hidden header (`struct Block`) placed right before user memory.
-- Tracks all blocks in a doubly linked list using `prev` and `next` pointers.
-- Reuses previously freed blocks when they are large enough for a new request.
-- Uses a magic marker plus a trailing canary in `my_free()` to detect corruption.
-- Aborts the process if heap corruption is detected during `my_free()`.
+- **Custom allocation (`my_malloc`)**
+  - Reuses a previously freed block if it is large enough.
+  - Otherwise requests more heap memory from the OS using `sbrk()`.
+- **Zero-initialized allocation (`my_calloc`)**
+  - Allocates `n * size` bytes using `my_malloc()`.
+  - Clears the allocated memory with `memset`.
+  - Includes integer-overflow protection for `n * size`.
+- **Safe deallocation (`my_free`)**
+  - Detects and aborts on:
+    - buffer underflow (head canary mismatch),
+    - buffer overflow / heap corruption (tail canary mismatch),
+    - double free,
+    - invalid/corrupted block marker.
+- **Heap bookkeeping**
+  - Maintains a doubly linked block list (`prev`/`next`).
+  - Tracks allocation statistics:
+    - `total_allocated`
+    - `total_freed`
+    - `active_blocks`
+- **Debug utilities**
+  - `print_stats()` shows allocator statistics.
+  - `print_heap()` prints block usage layout like `[USED size] -> [FREE size] -> NULL`.
 
 ## Block layout
 
 Each allocation is stored as:
 
 1. `struct Block` header
-2. User-accessible memory (returned by `my_malloc`)
+2. Head canary (`HEAD_Canary`)
+3. User-accessible memory (returned by `my_malloc`)
+4. Tail canary (`TRAIL_CANARY`)
 
 The header stores:
 
@@ -25,7 +43,7 @@ The header stores:
 - `inUse`: whether block is currently allocated
 - `size`: user-requested payload size
 
-Each allocated block also stores a trailing canary value immediately after the user payload. That extra value is used to catch writes past the end of the allocation.
+The extra head/tail canary values are used to detect out-of-bounds writes.
 
 ## Allocation flow
 
@@ -38,10 +56,11 @@ Each allocated block also stores a trailing canary value immediately after the u
 
 `my_free(ptr)`:
 
-1. Moves one header-size back from `ptr` to locate the block metadata.
-2. Verifies both the marker value and the trailing canary.
-3. Aborts immediately if either check fails, because that indicates heap corruption.
-4. Marks the block as free (`inUse = false`) so it can be reused later.
+1. Returns immediately for `NULL`.
+2. Validates the head canary (underflow check).
+3. Locates metadata and validates marker + tail canary.
+4. Rejects double free.
+5. Marks the block free and updates stats.
 
 ## Public API
 
@@ -49,7 +68,10 @@ Defined in `my_alloc.h`:
 
 ```c
 void* my_malloc(size_t size);
+void* my_calloc(size_t n, size_t size);
 void my_free(void* ptr);
+void print_stats(void);
+void print_heap(void);
 ```
 
 ## Build and run
@@ -64,15 +86,18 @@ gcc main.c my_alloc.c -o main
 The sample program currently:
 
 - allocates a 40-byte character buffer
-- writes and prints a sample team string with "Anna" included
+- writes and prints a sample team string
 - frees the string buffer
-- allocates an integer array of 5 elements
+- allocates a zero-initialized integer array of 5 elements with `my_calloc`
 - fills and prints values `0, 10, 20, 30, 40`
 - frees the array
+- prints final heap layout using `print_heap()`
 
 You will also see allocator debug messages such as:
 
 - `Memory successfully initialized ...` (new block from OS)
 - `Using old block` (reused freed block)
 - `Memory freed successfully`
-- `FATAL: Heap corruption detected! Aborting.` (invalid pointer or overwritten canary)
+- `UNDERFLOW detected!`
+- `Double free detected`
+- `Heap corruption: overflow detected ...`
