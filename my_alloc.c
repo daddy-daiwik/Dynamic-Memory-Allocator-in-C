@@ -20,7 +20,7 @@ void *heap_start = NULL;
 struct Block *prev = NULL;
 int MAGIC_NUMBER = 0x55;
 int TRAIL_CANARY = 3141825;
-int HEAD_Canary = 3141826;
+int HEAD_CANARY = 3141826;
 
 size_t total_allocated = 0;
 size_t total_freed = 0;
@@ -52,10 +52,12 @@ void* my_malloc(size_t size){
     //1. Traverse and find a empty block enough big to hold the requested size
     struct Block *temp = heap_start;
     while(temp!=NULL){
+        
+        size_t remaining = temp->size - size;
         if (!temp->inUse && temp->marker == MAGIC_NUMBER){
-            if (size <= temp->size){
+            if (size == temp->size || remaining < sizeof(struct Block) + 2*sizeof(int) + 8){
                 int* head = (int*)(temp + 1);
-                *head = HEAD_Canary;
+                *head = HEAD_CANARY;
                 int* tail = (int*)((char*)(head + 1) + size);
                 *tail = TRAIL_CANARY;
                 temp->size = size;
@@ -63,6 +65,34 @@ void* my_malloc(size_t size){
                 temp->inUse = true;
                 active_blocks++;
                 return (void*)(head + 1);
+            }
+            else if (size < temp->size){
+                int* head = (int*)(temp + 1);
+                *head = HEAD_CANARY;
+                int *tail = (int*)((char*)(head + 1) + size);
+                *tail = TRAIL_CANARY;
+                printf("Using old block by splitting\n");
+                struct Block *new_block = (struct Block*)(tail + 1);
+                new_block->inUse = false;
+                new_block->marker = MAGIC_NUMBER;
+                new_block->next = temp->next;
+                new_block->prev = temp;
+                temp->next = new_block;
+                int *new_head = (int *)(new_block+1);
+                new_block->size = temp->size - size - sizeof(struct Block) - 2*sizeof(int);
+                *new_head = HEAD_CANARY;
+                char* user_space = (char *)(new_head + 1);
+                int* new_tail = (int *)(user_space + new_block->size);
+                *new_tail = TRAIL_CANARY;
+                size_t old_size = temp->size;
+                size_t remaining = old_size - size;
+
+                new_block->size = remaining - sizeof(struct Block) - 2*sizeof(int);
+                temp->inUse = true;
+                if (new_block->next)
+                    new_block->next->prev = new_block;
+                active_blocks++;
+                return (void*)(head+1);
             }
         }
         temp = temp->next;
@@ -91,7 +121,7 @@ void* my_malloc(size_t size){
 
     //[Block struct][HEAD CANARY][USER DATA][TAIL CANARY]
     int* head_address = (int *)(new_block + 1);
-    *head_address = HEAD_Canary;
+    *head_address = HEAD_CANARY;
     char* user_space = (char *)(head_address + 1) + size;
     int* trail_address = (int *)(user_space);
     *trail_address = TRAIL_CANARY;
@@ -115,7 +145,7 @@ void my_free(void* ptr){
     printf("Freeing memory at address: %p\n", ptr);
     char* p = (char*)ptr;
     int* head_address = (int*)(p - sizeof(int));
-    if (*head_address != HEAD_Canary) {
+    if (*head_address != HEAD_CANARY) {
         fprintf(stderr, "UNDERFLOW detected!\n");
         abort();
     }
@@ -126,7 +156,7 @@ void my_free(void* ptr){
         fprintf(stderr, "Double free detected\n");
         abort();
     }
-    if (old_block->marker != MAGIC_NUMBER || *trail_address != TRAIL_CANARY || *head_address != HEAD_Canary){
+    if (old_block->marker != MAGIC_NUMBER || *trail_address != TRAIL_CANARY || *head_address != HEAD_CANARY){
         fprintf(stderr, "Heap corruption: overflow detected at %p\n", ptr);
         abort();
         return;

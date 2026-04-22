@@ -9,18 +9,18 @@ int main() {
     char *string = my_malloc(sizeof(char) * 40);
     strcpy(string, "Aunty, Daddy, Madam, Kid, Akka");
     printf("String: %s\n", string);
-    // print_stats();
-    my_free(string);
-    // print_stats();
+    print_stats();
+    // my_free(string);
+    print_stats();
     //Integer array
-    int *arr = my_calloc(5, sizeof(int));
-    for(int i = 0; i < 5; i++) {
+    int *arr = my_calloc(2, sizeof(int));
+    for(int i = 0; i < 2; i++) {
         arr[i] = i * 10;
         printf("%d\n", arr[i]);
     }
-    // print_stats();
+    print_stats();
     my_free(arr);
-    // print_stats();
+    print_stats();
     print_heap();
     return 0;
 }
